@@ -146,6 +146,7 @@ trustzone-secure = []
 ## If this is an issue for you, you're encouraged to directly depend on a fixed version of the PAC.
 ## There are no plans to make this stable.
 unstable-pac = []
+spi_v2 = []
 
 ## Enable this feature to disable the overclocking check.
 ## DO NOT ENABLE THIS FEATURE UNLESS YOU KNOW WHAT YOU'RE DOING.

@@ -27,7 +27,7 @@ enum Function {
     Transmit,
     /// Receive audio data
     Receive,
-    #[cfg(spi_v3)]
+    #[cfg(any(spi_v2, spi_v3))]
     /// Transmit and Receive audio data
     FullDuplex,
 }
@@ -72,7 +72,7 @@ impl From<ringbuffer::Error> for Error {
 }
 
 impl Standard {
-    #[cfg(any(spi_v1, spi_v3, spi_f1))]
+    #[cfg(any(spi_v1, spi_v2, spi_v3, spi_f1))]
     const fn i2sstd(&self) -> vals::I2sstd {
         match self {
             Standard::Philips => vals::I2sstd::PHILIPS,
@@ -83,7 +83,7 @@ impl Standard {
         }
     }
 
-    #[cfg(any(spi_v1, spi_v3, spi_f1))]
+    #[cfg(any(spi_v1, spi_v2, spi_v3, spi_f1))]
     const fn pcmsync(&self) -> vals::Pcmsync {
         match self {
             Standard::PcmLongSync => vals::Pcmsync::LONG,
@@ -106,7 +106,7 @@ pub enum Format {
 }
 
 impl Format {
-    #[cfg(any(spi_v1, spi_v3, spi_f1))]
+    #[cfg(any(spi_v1, spi_v2, spi_v3, spi_f1))]
     const fn datlen(&self) -> vals::Datlen {
         match self {
             Format::Data16Channel16 => vals::Datlen::BITS16,
@@ -116,7 +116,7 @@ impl Format {
         }
     }
 
-    #[cfg(any(spi_v1, spi_v3, spi_f1))]
+    #[cfg(any(spi_v1, spi_v2, spi_v3, spi_f1))]
     const fn chlen(&self) -> vals::Chlen {
         match self {
             Format::Data16Channel16 => vals::Chlen::BITS16,
@@ -137,7 +137,7 @@ pub enum ClockPolarity {
 }
 
 impl ClockPolarity {
-    #[cfg(any(spi_v1, spi_v3, spi_f1))]
+    #[cfg(any(spi_v1, spi_v2, spi_v3, spi_f1))]
     const fn ckpol(&self) -> vals::Ckpol {
         match self {
             ClockPolarity::IdleHigh => vals::Ckpol::IDLE_HIGH,
@@ -314,7 +314,7 @@ impl<'d, W: Word> I2S<'d, W> {
         )
     }
 
-    #[cfg(spi_v3)]
+    #[cfg(any(spi_v2, spi_v3))]
     /// Create a full duplex driver.
     pub fn new_full_duplex<T: Instance>(
         peri: Peri<'d, T>,
@@ -359,7 +359,7 @@ impl<'d, W: Word> I2S<'d, W> {
         if let Some(rx_ring_buffer) = &mut self.rx_ring_buffer {
             rx_ring_buffer.start();
             // SPIv3 clears rxfifo on SPE=0
-            #[cfg(not(any(spi_v3, spi_v4, spi_v5)))]
+            #[cfg(not(any(spi_v2, spi_v3, spi_v4, spi_v5)))]
             flush_rx_fifo(self.spi.info.regs);
 
             set_rxdmaen(self.spi.info.regs, true);
@@ -367,7 +367,7 @@ impl<'d, W: Word> I2S<'d, W> {
         self.spi.info.regs.cr1().modify(|w| {
             w.set_spe(true);
         });
-        #[cfg(any(spi_v3, spi_v4, spi_v5))]
+        #[cfg(any(spi_v2, spi_v3, spi_v4, spi_v5))]
         self.spi.info.regs.cr1().modify(|w| {
             w.set_cstart(true);
         });
@@ -406,7 +406,7 @@ impl<'d, W: Word> I2S<'d, W> {
 
         join(rx_f, tx_f).await;
 
-        #[cfg(any(spi_v3, spi_v4, spi_v5))]
+        #[cfg(any(spi_v2, spi_v3, spi_v4, spi_v5))]
         {
             if let Mode::Master = self.mode {
                 regs.cr1().modify(|w| {
@@ -495,9 +495,9 @@ impl<'d, W: Word> I2S<'d, W> {
 
         let (odd, div) = compute_baud_rate(pclk, freq, config.master_clock, config.format);
 
-        #[cfg(any(spi_v1, spi_v3, spi_f1))]
+        #[cfg(any(spi_v1, spi_v2, spi_v3, spi_f1))]
         {
-            #[cfg(spi_v3)]
+            #[cfg(any(spi_v2, spi_v3))]
             {
                 regs.cr1().modify(|w| w.set_spe(false));
 
@@ -532,7 +532,7 @@ impl<'d, W: Word> I2S<'d, W> {
                 {
                     regs.i2spr()
                 }
-                #[cfg(spi_v3)]
+                #[cfg(any(spi_v2, spi_v3))]
                 {
                     regs.i2scfgr()
                 }
@@ -562,11 +562,11 @@ impl<'d, W: Word> I2S<'d, W> {
                 w.set_i2scfg(match (config.mode, function) {
                     (Mode::Master, Function::Transmit) => I2scfg::MASTER_TX,
                     (Mode::Master, Function::Receive) => I2scfg::MASTER_RX,
-                    #[cfg(spi_v3)]
+                    #[cfg(any(spi_v2, spi_v3))]
                     (Mode::Master, Function::FullDuplex) => I2scfg::MASTER_FULL_DUPLEX,
                     (Mode::Slave, Function::Transmit) => I2scfg::SLAVE_TX,
                     (Mode::Slave, Function::Receive) => I2scfg::SLAVE_RX,
-                    #[cfg(spi_v3)]
+                    #[cfg(any(spi_v2, spi_v3))]
                     (Mode::Slave, Function::FullDuplex) => I2scfg::SLAVE_FULL_DUPLEX,
                 });
 
@@ -642,70 +642,74 @@ fn compute_baud_rate(i2s_clock: Hertz, request_freq: Hertz, mclk: bool, data_for
     }
 }
 
-#[cfg(spi_v3)]
+#[cfg(any(spi_v2, spi_v3))]
 // The STM32H7 reference manual specifies that any incompatible bitfields should be reset
 // to their reset values while operating in I2S mode.
+// For V2 The STM32F2/F4/L4 reference manual specifies that these registers are not used in I2S mode.
 fn reset_incompatible_bitfields<T: Instance>() {
-    let regs = T::info().regs;
-    regs.cr1().modify(|w| {
-        let iolock = w.iolock();
-        let csusp = w.csusp();
-        let spe = w.cstart();
-        let cstart = w.cstart();
-        w.0 = 0;
-        w.set_iolock(iolock);
-        w.set_csusp(csusp);
-        w.set_spe(spe);
-        w.set_cstart(cstart);
-    });
+    #[cfg(spi_v3)]
+    {
+        let regs = T::info().regs;
+        regs.cr1().modify(|w| {
+            let iolock = w.iolock();
+            let csusp = w.csusp();
+            let spe = w.cstart();
+            let cstart = w.cstart();
+            w.0 = 0;
+            w.set_iolock(iolock);
+            w.set_csusp(csusp);
+            w.set_spe(spe);
+            w.set_cstart(cstart);
+        });
 
-    regs.cr2().write(|w| w.0 = 0);
+        regs.cr2().write(|w| w.0 = 0);
 
-    regs.cfg1().modify(|w| {
-        let txdmaen = w.txdmaen();
-        let rxdmaen = w.rxdmaen();
-        let fthlv = w.fthlv();
-        w.0 = 0;
-        w.set_txdmaen(txdmaen);
-        w.set_rxdmaen(rxdmaen);
-        w.set_fthlv(fthlv);
-    });
+        regs.cfg1().modify(|w| {
+            let txdmaen = w.txdmaen();
+            let rxdmaen = w.rxdmaen();
+            let fthlv = w.fthlv();
+            w.0 = 0;
+            w.set_txdmaen(txdmaen);
+            w.set_rxdmaen(rxdmaen);
+            w.set_fthlv(fthlv);
+        });
 
-    regs.cfg2().modify(|w| {
-        let afcntr = w.afcntr();
-        let lsbfirst = w.lsbfirst();
-        let ioswp = w.ioswp();
-        w.0 = 0;
-        w.set_afcntr(afcntr);
-        w.set_lsbfirst(lsbfirst);
-        w.set_ioswp(ioswp);
-    });
+        regs.cfg2().modify(|w| {
+            let afcntr = w.afcntr();
+            let lsbfirst = w.lsbfirst();
+            let ioswp = w.ioswp();
+            w.0 = 0;
+            w.set_afcntr(afcntr);
+            w.set_lsbfirst(lsbfirst);
+            w.set_ioswp(ioswp);
+        });
 
-    regs.ier().modify(|w| {
-        let tifreie = w.tifreie();
-        let ovrie = w.ovrie();
-        let udrie = w.udrie();
-        let txpie = w.txpie();
-        let rxpie = w.rxpie();
+        regs.ier().modify(|w| {
+            let tifreie = w.tifreie();
+            let ovrie = w.ovrie();
+            let udrie = w.udrie();
+            let txpie = w.txpie();
+            let rxpie = w.rxpie();
 
-        w.0 = 0;
+            w.0 = 0;
 
-        w.set_tifreie(tifreie);
-        w.set_ovrie(ovrie);
-        w.set_udrie(udrie);
-        w.set_txpie(txpie);
-        w.set_rxpie(rxpie);
-    });
+            w.set_tifreie(tifreie);
+            w.set_ovrie(ovrie);
+            w.set_udrie(udrie);
+            w.set_txpie(txpie);
+            w.set_rxpie(rxpie);
+        });
 
-    regs.ifcr().write(|w| {
-        w.set_suspc(true);
-        w.set_tifrec(true);
-        w.set_ovrc(true);
-        w.set_udrc(true);
-    });
+        regs.ifcr().write(|w| {
+            w.set_suspc(true);
+            w.set_tifrec(true);
+            w.set_ovrc(true);
+            w.set_udrc(true);
+        });
 
-    regs.crcpoly().write(|w| w.0 = 0x107);
-    regs.txcrc().write(|w| w.0 = 0);
-    regs.rxcrc().write(|w| w.0 = 0);
-    regs.udrdr().write(|w| w.0 = 0);
+        regs.crcpoly().write(|w| w.0 = 0x107);
+        regs.txcrc().write(|w| w.0 = 0);
+        regs.rxcrc().write(|w| w.0 = 0);
+        regs.udrdr().write(|w| w.0 = 0);
+    }
 }
