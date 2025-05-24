@@ -1316,6 +1316,7 @@ pin_trait!(CsPin, Instance);
 pin_trait!(MckPin, Instance);
 pin_trait!(CkPin, Instance);
 pin_trait!(WsPin, Instance);
+pin_trait!(SdPin, Instance);
 dma_trait!(RxDma, Instance);
 dma_trait!(TxDma, Instance);
 

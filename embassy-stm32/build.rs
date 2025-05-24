@@ -905,6 +905,7 @@ fn main() {
         (("spi", "I2S_MCK"), quote!(crate::spi::MckPin)),
         (("spi", "I2S_CK"), quote!(crate::spi::CkPin)),
         (("spi", "I2S_WS"), quote!(crate::spi::WsPin)),
+        (("spi", "I2S_SD"), quote!(crate::spi::SdPin)),
         (("i2c", "SDA"), quote!(crate::i2c::SdaPin)),
         (("i2c", "SCL"), quote!(crate::i2c::SclPin)),
         (("rcc", "MCO_1"), quote!(crate::rcc::McoPin)),

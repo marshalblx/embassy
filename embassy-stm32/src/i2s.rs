@@ -27,7 +27,7 @@ enum Function {
     Transmit,
     /// Receive audio data
     Receive,
-    #[cfg(any(spi_v2, spi_v3))]
+    #[cfg(spi_v3)]
     /// Transmit and Receive audio data
     FullDuplex,
 }
@@ -72,7 +72,7 @@ impl From<ringbuffer::Error> for Error {
 }
 
 impl Standard {
-    #[cfg(any(spi_v1, spi_v2, spi_v3, spi_f1))]
+    #[cfg(any(spi_v1, spi_v3, spi_f1))]
     const fn i2sstd(&self) -> vals::I2sstd {
         match self {
             Standard::Philips => vals::I2sstd::PHILIPS,
@@ -80,6 +80,16 @@ impl Standard {
             Standard::LsbFirst => vals::I2sstd::LSB,
             Standard::PcmLongSync => vals::I2sstd::PCM,
             Standard::PcmShortSync => vals::I2sstd::PCM,
+        }
+    }
+    #[cfg(spi_v2)]
+    const fn i2sstd(&self) -> vals::Isstd {
+        match self {
+            Standard::Philips => vals::Isstd::PHILIPS,
+            Standard::MsbFirst => vals::Isstd::MSB,
+            Standard::LsbFirst => vals::Isstd::LSB,
+            Standard::PcmLongSync => vals::Isstd::PCM,
+            Standard::PcmShortSync => vals::Isstd::PCM,
         }
     }
 
@@ -237,7 +247,8 @@ impl<'d, W: Word> I2S<'d, W> {
     /// Create a transmitter driver.
     pub fn new_txonly<T: Instance>(
         peri: Peri<'d, T>,
-        sd: Peri<'d, impl MosiPin<T>>,
+        // sd: Peri<'d, impl MosiPin<T>>,
+        sd: Peri<'d, impl SdPin<T>>,
         ws: Peri<'d, impl WsPin<T>>,
         ck: Peri<'d, impl CkPin<T>>,
         mck: Peri<'d, impl MckPin<T>>,
@@ -290,7 +301,7 @@ impl<'d, W: Word> I2S<'d, W> {
     /// Create a receiver driver.
     pub fn new_rxonly<T: Instance>(
         peri: Peri<'d, T>,
-        sd: Peri<'d, impl MisoPin<T>>,
+        sd: Peri<'d, impl SdPin<T>>,
         ws: Peri<'d, impl WsPin<T>>,
         ck: Peri<'d, impl CkPin<T>>,
         mck: Peri<'d, impl MckPin<T>>,
@@ -314,7 +325,7 @@ impl<'d, W: Word> I2S<'d, W> {
         )
     }
 
-    #[cfg(any(spi_v2, spi_v3))]
+    #[cfg(spi_v3)]
     /// Create a full duplex driver.
     pub fn new_full_duplex<T: Instance>(
         peri: Peri<'d, T>,
@@ -367,7 +378,7 @@ impl<'d, W: Word> I2S<'d, W> {
         self.spi.info.regs.cr1().modify(|w| {
             w.set_spe(true);
         });
-        #[cfg(any(spi_v2, spi_v3, spi_v4, spi_v5))]
+        #[cfg(any(spi_v3, spi_v4, spi_v5))]
         self.spi.info.regs.cr1().modify(|w| {
             w.set_cstart(true);
         });
@@ -406,7 +417,7 @@ impl<'d, W: Word> I2S<'d, W> {
 
         join(rx_f, tx_f).await;
 
-        #[cfg(any(spi_v2, spi_v3, spi_v4, spi_v5))]
+        #[cfg(any(spi_v3, spi_v4, spi_v5))]
         {
             if let Mode::Master = self.mode {
                 regs.cr1().modify(|w| {
@@ -504,7 +515,10 @@ impl<'d, W: Word> I2S<'d, W> {
                 reset_incompatible_bitfields::<T>();
             }
 
+            #[cfg(not(spi_v2))]
             use stm32_metapac::spi::vals::{I2scfg, Odd};
+            #[cfg(spi_v2)]
+            use stm32_metapac::spi::vals::{Iscfg, Odd};
 
             // 1. Select the I2SDIV[7:0] bits in the SPI_I2SPR/SPI_I2SCFGR register to define the serial clock baud
             // rate to reach the proper audio sample frequency. The ODD bit in the
@@ -528,11 +542,11 @@ impl<'d, W: Word> I2S<'d, W> {
             // 5. The I2SE bit in SPI_I2SCFGR register must be set.
 
             let clk_reg = {
-                #[cfg(any(spi_v1, spi_f1))]
+                #[cfg(any(spi_v1, spi_v2, spi_f1))]
                 {
                     regs.i2spr()
                 }
-                #[cfg(any(spi_v2, spi_v3))]
+                #[cfg(spi_v3)]
                 {
                     regs.i2scfgr()
                 }
@@ -551,6 +565,9 @@ impl<'d, W: Word> I2S<'d, W> {
             regs.i2scfgr().modify(|w| {
                 w.set_ckpol(config.clock_polarity.ckpol());
 
+                #[cfg(spi_v2)]
+                w.set_i2smod(vals::Ismod::I2SMODE);
+                #[cfg(not(spi_v2))]
                 w.set_i2smod(true);
 
                 w.set_i2sstd(config.standard.i2sstd());
@@ -559,6 +576,7 @@ impl<'d, W: Word> I2S<'d, W> {
                 w.set_datlen(config.format.datlen());
                 w.set_chlen(config.format.chlen());
 
+                #[cfg(not(spi_v2))]
                 w.set_i2scfg(match (config.mode, function) {
                     (Mode::Master, Function::Transmit) => I2scfg::MASTER_TX,
                     (Mode::Master, Function::Receive) => I2scfg::MASTER_RX,
@@ -570,7 +588,15 @@ impl<'d, W: Word> I2S<'d, W> {
                     (Mode::Slave, Function::FullDuplex) => I2scfg::SLAVE_FULL_DUPLEX,
                 });
 
-                #[cfg(any(spi_v1, spi_f1))]
+                #[cfg(spi_v2)]
+                w.set_i2scfg(match (config.mode, function) {
+                    (Mode::Master, Function::Transmit) => Iscfg::MASTER_TX,
+                    (Mode::Master, Function::Receive) => Iscfg::MASTER_RX,
+                    (Mode::Slave, Function::Transmit) => Iscfg::SLAVE_TX,
+                    (Mode::Slave, Function::Receive) => Iscfg::SLAVE_RX,
+                });
+
+                #[cfg(any(spi_v1, spi_v2, spi_f1))]
                 w.set_i2se(true);
             });
 
