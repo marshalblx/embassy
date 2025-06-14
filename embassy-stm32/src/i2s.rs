@@ -372,7 +372,7 @@ impl<'d, W: Word> I2S<'d, W> {
         if let Some(rx_ring_buffer) = &mut self.rx_ring_buffer {
             rx_ring_buffer.start();
             // SPIv3 clears rxfifo on SPE=0
-            #[cfg(not(any(spi_v2, spi_v3, spi_v4, spi_v5)))]
+            #[cfg(not(any(spi_v3, spi_v4, spi_v5)))]
             flush_rx_fifo(self.spi.info.regs);
 
             set_rxdmaen(self.spi.info.regs, true);
@@ -419,7 +419,7 @@ impl<'d, W: Word> I2S<'d, W> {
 
         join(rx_f, tx_f).await;
 
-        #[cfg(any(spi_v3, spi_v4, spi_v5))]
+        #[cfg(any(spi_v2, spi_v3, spi_v4, spi_v5))]
         {
             if let Mode::Master = self.mode {
                 regs.cr1().modify(|w| {
