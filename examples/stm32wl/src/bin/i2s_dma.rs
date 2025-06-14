@@ -12,7 +12,8 @@ use embassy_executor::Spawner;
 use embassy_stm32::i2s::{Config, Format, I2S, Mode};
 // use embassy_stm32::spi::{Config, Spi};
 use embassy_stm32::time::Hertz;
-// use embassy_time::Timer;
+use embassy_time::Duration;
+use embassy_time::Timer;
 use {defmt_rtt as _, panic_probe as _};
 
 #[embassy_executor::main]
@@ -91,6 +92,12 @@ async fn main(_spawner: Spawner) {
             },
             Err(x) => error!("buffer read error {}", x),
         }
+    }
+
+    info!("stopping i2s");
+    match embassy_time::with_timeout(embassy_time::Duration::from_secs(1), i2s.stop()).await {
+        Ok(_) => info!("i2s stopped successfully"),
+        Err(_) => error!("i2s stop timed out"),
     }
 
     /*

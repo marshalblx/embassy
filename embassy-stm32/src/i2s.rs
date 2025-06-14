@@ -2,6 +2,7 @@
 
 use embassy_futures::join::join;
 use stm32_metapac::spi::vals;
+use defmt::{debug, trace, warn};
 
 use crate::dma::{ringbuffer, ChannelAndRequest, ReadableRingBuffer, TransferOptions, WritableRingBuffer};
 use crate::gpio::{AfType, AnyPin, OutputType, SealedPin, Speed};
@@ -9,6 +10,7 @@ use crate::mode::Async;
 use crate::spi::{Config as SpiConfig, RegsExt as _, *};
 use crate::time::Hertz;
 use crate::Peri;
+use embassy_time::{Duration, Instant};
 
 /// I2S mode
 #[derive(Copy, Clone)]
@@ -424,7 +426,15 @@ impl<'d, W: Word> I2S<'d, W> {
                     w.set_csusp(true);
                 });
 
-                while regs.cr1().read().cstart() {}
+                debug!("I2S stop: CR1 before loop: {:?}", regs.cr1().read());
+                debug!("I2S stop: I2SCFGR before loop: {:?}", regs.i2scfgr().read());
+                let start_time = Instant::now();
+                while regs.cr1().read().cstart() && start_time.elapsed() < Duration::from_millis(10) {
+                    trace!("I2S stop: Waiting for CSTART to clear");
+                }
+                if regs.cr1().read().cstart() {
+                    warn!("I2S stop: CSTART clear timed out after 10ms");
+                }
             }
         }
 
