@@ -5,6 +5,7 @@ use core::task::{Context, Poll, Waker};
 
 use embassy_hal_internal::Peri;
 use embassy_sync::waitqueue::AtomicWaker;
+use defmt::{debug, trace, warn};
 
 use super::ringbuffer::{DmaCtrl, Error, ReadableDmaRingBuffer, WritableDmaRingBuffer};
 use super::word::{Word, WordSize};
@@ -303,19 +304,29 @@ impl AnyChannel {
             }
             #[cfg(bdma)]
             DmaInfo::Bdma(r) => {
+                debug!("BDMA on_irq: entered for id {}", self.id);
                 let isr = r.isr().read();
                 let cr = r.ch(info.num).cr();
+                let cr_val = cr.read();
+
+                debug!(
+                    "BDMA on_irq: id={}, isr.tcif(info.num)={}, cr.tcie()={}",
+                    self.id,
+                    isr.tcif(info.num),
+                    cr_val.tcie()
+                );
 
                 if isr.teif(info.num) {
                     panic!("DMA: error on BDMA@{:08x} channel {}", r.as_ptr() as u32, info.num);
                 }
 
-                if isr.htif(info.num) && cr.read().htie() {
+                if isr.htif(info.num) && cr_val.htie() {
                     // Acknowledge half transfer complete interrupt
                     r.ifcr().write(|w| w.set_htif(info.num, true));
-                } else if isr.tcif(info.num) && cr.read().tcie() {
+                } else if isr.tcif(info.num) && cr_val.tcie() {
                     // Acknowledge transfer complete interrupt
                     r.ifcr().write(|w| w.set_tcif(info.num, true));
+                    debug!("BDMA on_irq: id={}, incrementing complete_count", self.id);
                     #[cfg(not(armv6m))]
                     state.complete_count.fetch_add(1, Ordering::Release);
                     #[cfg(armv6m)]
@@ -486,8 +497,10 @@ impl AnyChannel {
             }
             #[cfg(bdma)]
             DmaInfo::Bdma(r) => {
+                debug!("BDMA request_stop: explicitly disabling channel id {}", self.id);
                 // Disable the channel. Keep the IEs enabled so the irqs still fire.
                 r.ch(info.num).cr().write(|w| {
+                    w.set_en(false); // Explicitly disable the channel
                     w.set_teie(true);
                     w.set_tcie(true);
                 });
@@ -524,10 +537,16 @@ impl AnyChannel {
             DmaInfo::Bdma(r) => {
                 let state: &ChannelState = &STATE[self.id as usize];
                 let ch = r.ch(info.num);
-                let en = ch.cr().read().en();
-                let circular = ch.cr().read().circ();
-                let tcif = state.complete_count.load(Ordering::Acquire) != 0;
-                en && (circular || !tcif)
+                let cr_val = ch.cr().read(); // Read CR once
+                let en = cr_val.en();
+                let circular = cr_val.circ();
+                // For BDMA, TCIF is indicated by complete_count != 0, as per on_irq logic
+                let tcif_active = state.complete_count.load(Ordering::Acquire) != 0;
+                debug!(
+                    "BDMA is_running: id={}, en={}, circular={}, tcif_active (from complete_count)={}",
+                    self.id, en, circular, tcif_active
+                );
+                en && (circular || !tcif_active)
             }
         }
     }
@@ -550,9 +569,21 @@ impl AnyChannel {
                 w.set_circ(false);
             }),
             #[cfg(bdma)]
-            DmaInfo::Bdma(regs) => regs.ch(info.num).cr().modify(|w| {
-                w.set_circ(false);
-            }),
+            DmaInfo::Bdma(regs) => {
+                let cr_before = regs.ch(info.num).cr().read();
+                debug!(
+                    "BDMA disable_circular_mode: id={}, CR before: {:?}",
+                    self.id, cr_before
+                );
+                regs.ch(info.num).cr().modify(|w| {
+                    w.set_circ(false);
+                });
+                let cr_after = regs.ch(info.num).cr().read();
+                debug!(
+                    "BDMA disable_circular_mode: id={}, CR after: {:?}",
+                    self.id, cr_after
+                );
+            }
         }
     }
 
@@ -919,9 +950,11 @@ impl<'a, W: Word> ReadableRingBuffer<'a, W> {
     ///
     /// When using the UART, you probably want `request_stop()`.
     pub async fn stop(&mut self) {
+        debug!("ReadableRingBuffer::stop called for channel id {}", self.channel.id);
         self.channel.disable_circular_mode();
         //wait until cr.susp reads as true
         poll_fn(|cx| {
+            trace!("ReadableRingBuffer::stop polling for channel id {}", self.channel.id);
             self.set_waker(cx.waker());
             self.channel.poll_stop()
         })
