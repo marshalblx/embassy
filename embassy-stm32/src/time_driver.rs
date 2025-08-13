@@ -381,6 +381,8 @@ impl RtcDriver {
     fn stop_wakeup_alarm(&self, cs: CriticalSection) {
         if let Some(offset) = self.rtc.borrow(cs).get().unwrap().stop_wakeup_alarm(cs) {
             self.add_time(offset, cs);
+        } else {
+            trace!("unable to stop wakeup alarm");
         }
     }
 
@@ -414,6 +416,7 @@ impl RtcDriver {
 
             let time_until_next_alarm = self.time_until_next_alarm(cs);
             if time_until_next_alarm < Self::MIN_STOP_PAUSE {
+                trace!("time until next alarm < MIN");
                 Err(())
             } else {
                 self.rtc
