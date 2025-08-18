@@ -124,17 +124,17 @@ pub enum StopMode {
     Stop2,
 }
 
-#[cfg(any(stm32l4, stm32l5, stm32u5, stm32wba, stm32u0, stm32wl))]
+#[cfg(any(stm32l4, stm32l5, stm32u5, stm32wba, stm32u0))]
 use stm32_metapac::pwr::vals::Lpms;
 
-#[cfg(any(stm32l4, stm32l5, stm32u5, stm32wba, stm32u0, stm32wl))]
+#[cfg(any(stm32l4, stm32l5, stm32u5, stm32wba, stm32u0))]
 impl Into<Lpms> for StopMode {
     fn into(self) -> Lpms {
         match self {
             StopMode::Stop1 => Lpms::STOP1,
-            #[cfg(not(any(stm32wba, stm32wl)))]
+            #[cfg(not(stm32wba))]
             StopMode::Stop2 => Lpms::STOP2,
-            #[cfg(any(stm32wba, stm32wl))]
+            #[cfg(stm32wba)]
             StopMode::Stop2 => Lpms::STOP1, // TODO: WBA has no STOP2?
         }
     }
@@ -177,6 +177,11 @@ impl Executor {
     }
 
     unsafe fn on_wakeup_irq(&mut self) {
+        #[cfg(any(
+            rcc_l0, rcc_l1, rcc_l4, rcc_l5, rcc_u0, rcc_u5, rcc_wb, rcc_wl5, rcc_wle, rcc_g0, rcc_g4, rcc_h5
+        ))]
+        crate::rcc::restore_clocks();
+
         self.time_driver.resume_time();
         trace!("low power: resume");
     }
@@ -201,7 +206,7 @@ impl Executor {
 
     #[allow(unused_variables)]
     fn configure_stop(&mut self, stop_mode: StopMode) {
-        #[cfg(any(stm32l4, stm32l5, stm32u5, stm32u0, stm32wba, stm32wl))]
+        #[cfg(any(stm32l4, stm32l5, stm32u5, stm32u0, stm32wba))]
         crate::pac::PWR.cr1().modify(|m| m.set_lpms(stop_mode.into()));
         #[cfg(stm32h5)]
         crate::pac::PWR.pmcr().modify(|v| {

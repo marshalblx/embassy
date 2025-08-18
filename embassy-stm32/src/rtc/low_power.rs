@@ -238,7 +238,7 @@ impl Rtc {
             }
             #[cfg(any(stm32wb, stm32wl))]
             {
-                EXTI.cpu(0).imr(0).modify(|w| w.set_line(RTC::EXTI_WAKEUP_LINE, true));
+                crate::exti::cpu_regs().imr(0).modify(|w| w.set_line(RTC::EXTI_WAKEUP_LINE, true));
             }
         }
         #[cfg(stm32u5)]
