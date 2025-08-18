@@ -124,17 +124,17 @@ pub enum StopMode {
     Stop2,
 }
 
-#[cfg(any(stm32l4, stm32l5, stm32u5, stm32wba, stm32u0))]
+#[cfg(any(stm32l4, stm32l5, stm32u5, stm32wba, stm32u0, stm32wl))]
 use stm32_metapac::pwr::vals::Lpms;
 
-#[cfg(any(stm32l4, stm32l5, stm32u5, stm32wba, stm32u0))]
+#[cfg(any(stm32l4, stm32l5, stm32u5, stm32wba, stm32u0, stm32wl))]
 impl Into<Lpms> for StopMode {
     fn into(self) -> Lpms {
         match self {
             StopMode::Stop1 => Lpms::STOP1,
-            #[cfg(not(stm32wba))]
+            #[cfg(not(any(stm32wba, stm32wl)))]
             StopMode::Stop2 => Lpms::STOP2,
-            #[cfg(stm32wba)]
+            #[cfg(any(stm32wba, stm32wl))]
             StopMode::Stop2 => Lpms::STOP1, // TODO: WBA has no STOP2?
         }
     }
@@ -201,7 +201,7 @@ impl Executor {
 
     #[allow(unused_variables)]
     fn configure_stop(&mut self, stop_mode: StopMode) {
-        #[cfg(any(stm32l4, stm32l5, stm32u5, stm32u0, stm32wba))]
+        #[cfg(any(stm32l4, stm32l5, stm32u5, stm32u0, stm32wba, stm32wl))]
         crate::pac::PWR.cr1().modify(|m| m.set_lpms(stop_mode.into()));
         #[cfg(stm32h5)]
         crate::pac::PWR.pmcr().modify(|v| {
