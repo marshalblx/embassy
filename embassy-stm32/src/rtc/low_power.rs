@@ -134,6 +134,8 @@ impl Rtc {
         #[cfg(any(rtc_v3, rtc_v3u5, rtc_v3l5))]
         use crate::pac::rtc::vals::Calrf;
 
+        trace!("starting wakeup alarm");
+
         // Panic if the rcc mod knows we're not using low-power rtc
         #[cfg(any(rcc_wb, rcc_f4, rcc_f410))]
         unsafe { crate::rcc::get_freqs() }.rtc.to_hertz().unwrap();
@@ -189,6 +191,8 @@ impl Rtc {
         #[cfg(any(rtc_v3, rtc_v3u5, rtc_v3l5))]
         use crate::pac::rtc::vals::Calrf;
 
+        trace!("stopping wakeup alarm");
+
         let instant = self.instant().unwrap();
         if RTC::regs().cr().read().wute() {
             trace!("rtc: stop wakeup alarm at {}", instant);
@@ -232,11 +236,12 @@ impl Rtc {
             use crate::pac::EXTI;
             EXTI.rtsr(0).modify(|w| w.set_line(RTC::EXTI_WAKEUP_LINE, true));
 
-            #[cfg(not(any(stm32wb, stm32wl)))]
+            // #[cfg(not(any(stm32wb, stm32wl)))]
+            #[cfg(not(any(stm32wb)))]
             {
                 EXTI.imr(0).modify(|w| w.set_line(RTC::EXTI_WAKEUP_LINE, true));
             }
-            #[cfg(any(stm32wb, stm32wl))]
+            #[cfg(any(stm32wb))]
             {
                 crate::exti::cpu_regs().imr(0).modify(|w| w.set_line(RTC::EXTI_WAKEUP_LINE, true));
             }

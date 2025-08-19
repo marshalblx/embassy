@@ -86,12 +86,14 @@ pub(crate) unsafe fn set_freqs(freqs: Clocks) {
 #[cfg(not(feature = "_dual-core"))]
 /// Safety: Reads a mutable global.
 pub(crate) unsafe fn get_freqs() -> &'static Clocks {
+    trace!("get_freqs ('single')");
     (*core::ptr::addr_of_mut!(CLOCK_FREQS)).assume_init_ref()
 }
 
 #[cfg(feature = "_dual-core")]
 /// Safety: Reads a mutable global.
 pub(crate) unsafe fn get_freqs() -> &'static Clocks {
+    trace!("get_freqs (_dual-core)");
     unwrap!(CLOCK_FREQS_PTR.load(core::sync::atomic::Ordering::SeqCst).as_ref()).assume_init_ref()
 }
 

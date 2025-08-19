@@ -162,8 +162,8 @@ pub(crate) unsafe fn init(config: Config) {
 
 #[cfg(feature = "low-power")]
 pub(crate) unsafe fn restore_clocks() {
-    if let Some(config) = &CLOCK_CONFIG {
-        init_internal(config, false);
+    if let Some(config) = CLOCK_CONFIG {
+        init_internal(&config, false);
     }
 }
 
