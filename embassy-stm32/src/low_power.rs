@@ -177,6 +177,11 @@ impl Executor {
     }
 
     unsafe fn on_wakeup_irq(&mut self) {
+        #[cfg(any(
+            rcc_l0, rcc_l1, rcc_l4, rcc_l5, rcc_u0, rcc_u5, rcc_wb, rcc_wl5, rcc_wle, rcc_g0, rcc_g4, rcc_h5
+        ))]
+        crate::rcc::restore_clocks();
+
         self.time_driver.resume_time();
         trace!("low power: resume");
     }

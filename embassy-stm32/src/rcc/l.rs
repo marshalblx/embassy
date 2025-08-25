@@ -153,7 +153,22 @@ fn msi_enable(range: MSIRange) {
     while !RCC.cr().read().msirdy() {}
 }
 
+static mut CLOCK_CONFIG: Option<Config> = None;
+
 pub(crate) unsafe fn init(config: Config) {
+    CLOCK_CONFIG = Some(config);
+    init_internal(&config, config.ls.init());
+}
+
+#[cfg(feature = "low-power")]
+pub(crate) unsafe fn restore_clocks() {
+    if let Some(config) = &CLOCK_CONFIG {
+        let rtc = unsafe { super::get_freqs().rtc.to_hertz() };
+        init_internal(config, rtc);
+    }
+}
+
+unsafe fn init_internal(config: &Config, rtc: Option<Hertz>) {
     // Switch to MSI to prevent problems with PLL configuration.
     if !RCC.cr().read().msion() {
         // Turn on MSI and configure it to 4MHz.
@@ -185,8 +200,6 @@ pub(crate) unsafe fn init(config: Config) {
     crate::pac::PWR.cr1().modify(|w| {
         w.set_vos(crate::pac::pwr::vals::Vos::RANGE0);
     });
-
-    let rtc = config.ls.init();
 
     let lse = config.ls.lse.map(|l| l.frequency);
     let lsi = config.ls.lsi.then_some(LSI_FREQ);
