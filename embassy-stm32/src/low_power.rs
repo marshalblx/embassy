@@ -177,8 +177,8 @@ impl Executor {
     }
 
     unsafe fn on_wakeup_irq(&mut self) {
-        self.time_driver.resume_time();
         trace!("low power: resume");
+        self.time_driver.resume_time();
     }
 
     pub(self) fn stop_with_rtc(&mut self, rtc: &'static Rtc) {

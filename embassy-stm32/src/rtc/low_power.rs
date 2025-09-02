@@ -82,7 +82,7 @@ impl From<WakeupPrescaler> for crate::pac::rtc::vals::Wucksel {
 }
 
 #[cfg(any(
-    stm32f4, stm32l0, stm32g4, stm32l4, stm32l5, stm32wb, stm32h5, stm32g0, stm32u5, stm32u0, stm32wba
+    stm32f4, stm32l0, stm32g4, stm32l4, stm32l5, stm32wb, stm32h5, stm32g0, stm32u5, stm32u0, stm32wba, stm32wl
 ))]
 impl From<crate::pac::rtc::vals::Wucksel> for WakeupPrescaler {
     fn from(val: crate::pac::rtc::vals::Wucksel) -> Self {
@@ -138,6 +138,7 @@ impl Rtc {
         #[cfg(any(rcc_wb, rcc_f4, rcc_f410))]
         unsafe { crate::rcc::get_freqs() }.rtc.to_hertz().unwrap();
 
+        trace!("start wakeup requested duration: {}", requested_duration);
         let requested_duration = requested_duration.as_ticks().clamp(0, u32::MAX as u64);
         let rtc_hz = Self::frequency().0 as u64;
         let rtc_ticks = requested_duration * rtc_hz / TICK_HZ;
@@ -252,6 +253,13 @@ impl Rtc {
             use crate::pac::RCC;
             // RCC.srdamr().modify(|w| w.set_rtcapbamen(true));
             RCC.apb7smenr().modify(|w| w.set_rtcapbsmen(true));
+        }
+        #[cfg(stm32wl)]
+        {
+            use crate::pac::RCC;
+            RCC.apb1smenr1().modify(|w| {
+                w.set_rtcapbsmen(true);
+            });
         }
     }
 }
