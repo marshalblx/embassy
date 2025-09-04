@@ -68,6 +68,8 @@ pub struct Config {
     pub mux: super::mux::ClockMux,
 }
 
+static mut CLOCK_CFG : Option<Config> = None;
+
 impl Config {
     pub const fn new() -> Self {
         Config {
@@ -154,6 +156,19 @@ fn msi_enable(range: MSIRange) {
 }
 
 pub(crate) unsafe fn init(config: Config) {
+    init_inner(config);
+    CLOCK_CFG = Some(config);
+}
+
+#[cfg(feature = "low-power")]
+pub(crate) unsafe fn restore_clocks() {
+    if let Some(config) = CLOCK_CFG {
+        trace!("restoring clocks");
+        init_inner(config);
+    }
+}
+
+unsafe fn init_inner(config: Config) {
     // Switch to MSI to prevent problems with PLL configuration.
     if !RCC.cr().read().msion() {
         // Turn on MSI and configure it to 4MHz.
@@ -442,6 +457,7 @@ pub(crate) unsafe fn init(config: Config) {
         sai2_extclk: None,
     );
 }
+
 
 #[cfg(any(stm32l0, stm32l1))]
 fn msirange_to_hertz(range: MSIRange) -> Hertz {

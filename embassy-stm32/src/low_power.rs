@@ -61,6 +61,7 @@ use core::sync::atomic::{compiler_fence, Ordering};
 use cortex_m::peripheral::SCB;
 use embassy_executor::*;
 
+use crate::rcc;
 use crate::interrupt;
 use crate::time_driver::{get_driver, RtcDriver};
 
@@ -177,7 +178,6 @@ impl Executor {
     }
 
     unsafe fn on_wakeup_irq(&mut self) {
-        trace!("low power: resume");
         self.time_driver.resume_time();
     }
 
@@ -266,6 +266,7 @@ impl Executor {
                 executor.inner.poll();
                 self.configure_pwr();
                 asm!("wfe");
+                rcc::restore_clocks();
             };
         }
     }
