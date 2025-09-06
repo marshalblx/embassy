@@ -267,6 +267,7 @@ impl RtcDriver {
     fn init(&'static self, cs: critical_section::CriticalSection) {
         rcc::enable_and_reset_with_cs::<T>(cs);
 
+        #[cfg(feature = "low-power")]
         self.saved_count.store(0, Ordering::Relaxed);
 
         self.init_inner();
